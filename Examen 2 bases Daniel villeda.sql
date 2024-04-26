@@ -204,4 +204,32 @@ INSERT INTO usuarios (
 ) VALUES (1,0, 'Usuario Sin Plan','Pruebausuario@gmail.com', TO_DATE('2000-10-06', 'YYYY-MM-DD'));
 
 
+--Desarrollar un procedimiento almacenado que genere periódicamente un reporte de la popularidad de los
+--artistas y grupos musicales. Este procedimiento debe sumar el número de veces que cada canción ha sido
+--reproducida/escuchada por los usuarios por cada mes agrupadas por artista o grupo musical. Utilizando esta
+--información, el procedimiento debe clasificar el top 10 de los artistas y grupos musicales e insertarlos en la
+--tabla top_artistas_mensuales, asignando el atributo posición según la cantidad de reproducciones (el que
+--tenga la posición 1 es el que tiene más reproducciones), es necesario truncar la tabla antes de insertar la
+--información actualizada. Una vez desarrollado el procedimiento, cree un job para calendarizar su ejecución
+--semanal, el primer día de cada semana (Ejemplo de frecuencia semanal: FREQ=DAILY; BYDAY=FRI;
+--BYHOUR=14;).
 
+CREATE OR REPLACE PROCEDURE generar_reporte_popularidad_artistas AS
+BEGIN
+    -- Truncamos la tabla
+    DELETE FROM top_artistas_mensuales;
+    
+    -- Insersion
+    INSERT INTO top_artistas_mensuales (id_artista, id_grupo, anio, mes, cantidad_reproducciones, posicion)
+    SELECT id_artista, id_grupo, EXTRACT(YEAR FROM r.fecha_reproduccion) AS anio, TO_CHAR(r.fecha_reproduccion, 'MM') AS mes,
+           COUNT(*) AS cantidad_reproducciones, ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC) AS posicion
+    FROM reproducciones r
+    INNER JOIN canciones c ON r.id_cancion = c.id_cancion
+    LEFT JOIN artistas a ON c.id_artista = a.id_artista
+    LEFT JOIN grupos g ON c.id_grupo = g.id_grupo
+    GROUP BY id_artista, id_grupo, EXTRACT(YEAR FROM r.fecha_reproduccion), TO_CHAR(r.fecha_reproduccion, 'MM')
+    ORDER BY COUNT(*) DESC;
+    
+    -- Limitar a los primeros 10 registros
+    DELETE FROM top_artist
+END
