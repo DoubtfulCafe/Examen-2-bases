@@ -214,3 +214,59 @@ INSERT INTO usuarios (
 --semanal, el primer día de cada semana (Ejemplo de frecuencia semanal: FREQ=DAILY; BYDAY=FRI;
 --BYHOUR=14;).
 
+CREATE OR REPLACE PROCEDURE P_GENERAR_REPORTE_POPULARIDAD AS
+BEGIN
+    --eliminamos datos anteriores
+    EXECUTE IMMEDIATE 'TRUNCATE TABLE top_artistas_mensuales';
+
+    --al chile se que hace mi consulta no obstante no creo que me de tiempo de copilarla crucemmos dedos
+    INSERT INTO top_artistas_mensuales (
+        id_artista,
+        id_grupo,
+        anio,
+        mes,
+        cantidad_reproducciones,
+        posicion
+    )
+    SELECT *
+    FROM (
+        SELECT
+            id_artista,
+            id_grupo,
+            EXTRACT(YEAR FROM fecha_reproduccion) AS anio,
+            TO_CHAR(fecha_reproduccion, 'MM') AS mes,
+            COUNT(*) AS cantidad_reproducciones,
+            ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM fecha_reproduccion), TO_CHAR(fecha_reproduccion, 'MM') ORDER BY COUNT(*) DESC) AS posicion
+        FROM c##spotify.reproducciones
+        GROUP BY id_artista, id_grupo, EXTRACT(YEAR FROM fecha_reproduccion), TO_CHAR(fecha_reproduccion, 'MM')
+        ORDER BY EXTRACT(YEAR FROM fecha_reproduccion), TO_CHAR(fecha_reproduccion, 'MM'), COUNT(*) DESC
+    )
+    WHERE posicion <= 10; --xd no creo que funcione
+
+    COMMIT;
+END;
+/
+CREATE TABLE tabla_jobs_programados (
+    id_job NUMBER PRIMARY KEY,
+    nombre_job VARCHAR2(100),
+    tipo_job VARCHAR2(100),
+    accion_job VARCHAR2(4000),
+    fecha_inicio DATE,
+    frecuencia VARCHAR2(100),
+    estado VARCHAR2(20),
+    comentarios VARCHAR2(4000)
+);
+
+INSERT INTO tabla_jobs_programados (id_job, nombre_job, tipo_job, accion_job, fecha_inicio, frecuencia, estado, comentarios)
+VALUES (
+    1,
+    'JOB_GENERAR_REPORTE_POPULARIDAD',
+    'PLSQL_BLOCK',
+    'BEGIN P_GENERAR_REPORTE_POPULARIDAD; END;',
+    SYSTIMESTAMP,
+    'FREQ=WEEKLY; BYDAY=MON;',
+    'ACTIVO',
+    'JOB para generar el reporte de popularidad de artistas y grupos musicales semanalmente'
+);
+
+COMMIT;
